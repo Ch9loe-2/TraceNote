@@ -1,0 +1,181 @@
+<template>
+  <div class="content-wrapper">
+    <div class="toolbar">
+      <router-link to="/" class="back-link">← Back</router-link>
+      <span class="toolbar-title" style="margin-left:8px">Import / Export</span>
+    </div>
+
+    <div class="content-area">
+      <!-- Import -->
+      <div class="import-section">
+        <div class="section-title">Import Session</div>
+        <div class="import-box" @dragover.prevent @drop.prevent="handleDrop" @click="triggerFileInput">
+          <div class="import-icon">↩</div>
+          <div class="import-text">Drop a TraceNote JSON file here, or click to select</div>
+          <div class="import-hint">.json files only</div>
+          <input type="file" ref="fileInput" accept=".json" style="display:none" @change="handleFileSelect" />
+        </div>
+      </div>
+
+      <!-- Import Result -->
+      <div v-if="importResult" class="import-result" :class="{ success: importResult.success, error: !importResult.success }">
+        <div class="result-icon">{{ importResult.success ? '✓' : '✗' }}</div>
+        <div class="result-text">{{ importResult.message }}</div>
+        <button v-if="importResult.sessionId" class="btn btn-sm" @click="goToSession(importResult.sessionId)">View Session</button>
+      </div>
+
+      <!-- Export All -->
+      <div class="import-section" style="margin-top:24px">
+        <div class="section-title">Export All</div>
+        <div class="export-info">
+          <div style="margin-bottom:8px;color:var(--text-secondary);font-size:12px">
+            Export all saved sessions as a single JSON file.
+          </div>
+          <button class="btn" @click="exportAll">Export All Sessions</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { getAllSessions, saveSession, createSessionData, getSession } from '../storage/SessionStore.js'
+
+const router = useRouter()
+const fileInput = ref(null)
+const importResult = ref(null)
+
+function triggerFileInput() {
+  fileInput.value?.click()
+}
+
+async function handleFileSelect(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  await processFile(file)
+  e.target.value = ''
+}
+
+async function handleDrop(e) {
+  const file = e.dataTransfer?.files?.[0]
+  if (!file) return
+  await processFile(file)
+}
+
+async function processFile(file) {
+  try {
+    const text = await file.text()
+    const data = JSON.parse(text)
+
+    // Validate structure
+    if (!data.session || !data.events || !Array.isArray(data.events)) {
+      importResult.value = {
+        success: false,
+        message: 'Invalid TraceNote JSON: missing session or events array.',
+      }
+      return
+    }
+
+    // Create and save
+    const sessionData = createSessionData(
+      data.session.name || `Imported ${new Date().toLocaleDateString()}`,
+      data.events,
+      data.session.page || '/',
+    )
+    sessionData.id = sessionData.id // keep new id
+    await saveSession(sessionData)
+
+    importResult.value = {
+      success: true,
+      message: `Imported successfully: ${sessionData.name} (${data.events.length} events)`,
+      sessionId: sessionData.id,
+    }
+  } catch (err) {
+    importResult.value = {
+      success: false,
+      message: `Import failed: ${err.message}`,
+    }
+  }
+}
+
+async function exportAll() {
+  const sessions = await getAllSessions()
+  if (sessions.length === 0) {
+    importResult.value = {
+      success: false,
+      message: 'No sessions to export.',
+    }
+    return
+  }
+
+  const exportData = []
+  for (const s of sessions) {
+    const full = await getSession(s.id)
+    if (full) {
+      exportData.push({
+        session: {
+          id: full.id, name: full.name, createdAt: full.createdAt,
+          duration: full.duration, page: full.page,
+        },
+        events: full.events.map(e => ({
+          id: e.id, type: e.type, timestamp: e.timestamp, page: e.page,
+          selector: e.selector, x: e.x, y: e.y, value: e.value, key: e.key, url: e.url,
+        })),
+      })
+    }
+  }
+
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = `tracenote-all-sessions-${Date.now()}.json`
+  a.click(); URL.revokeObjectURL(url)
+}
+
+function goToSession(id) {
+  router.push(`/session/${id}`)
+}
+</script>
+
+<style scoped>
+.content-wrapper { display: flex; flex-direction: column; height: 100%; }
+
+.section-title {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--text-muted); font-weight: 600; margin-bottom: 10px;
+}
+
+.import-section { margin-bottom: 20px; }
+
+.import-box {
+  border: 2px dashed var(--border-color);
+  border-radius: 8px;
+  padding: 40px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.import-box:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+.import-icon { font-size: 36px; color: var(--text-muted); margin-bottom: 8px; }
+.import-text { font-size: 14px; color: var(--text-secondary); margin-bottom: 4px; }
+.import-hint { font-size: 11px; color: var(--text-muted); }
+
+.import-result {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; border-radius: 6px; margin-bottom: 12px;
+}
+.import-result.success { background: rgba(78, 201, 176, 0.1); border: 1px solid var(--success); }
+.import-result.error { background: rgba(244, 71, 71, 0.1); border: 1px solid var(--danger); }
+.result-icon { font-size: 18px; font-weight: 700; }
+.import-result.success .result-icon { color: var(--success); }
+.import-result.error .result-icon { color: var(--danger); }
+.result-text { flex: 1; font-size: 12px; color: var(--text-primary); }
+
+.export-info { padding: 12px; background: var(--bg-tertiary); border-radius: 6px; }
+</style>
