@@ -17,8 +17,11 @@ const DB_NAME = 'TraceNoteDB'
 const DB_VERSION = 1
 const STORE_NAME = 'sessions'
 
+let _dbPromise = null
+
 function openDB() {
-  return new Promise((resolve, reject) => {
+  if (_dbPromise) return _dbPromise
+  _dbPromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION)
     request.onupgradeneeded = (e) => {
       const db = e.target.result
@@ -28,8 +31,9 @@ function openDB() {
       }
     }
     request.onsuccess = () => resolve(request.result)
-    request.onerror = () => reject(request.error)
+    request.onerror = () => { _dbPromise = null; reject(request.error) }
   })
+  return _dbPromise
 }
 
 export async function saveSession(session) {

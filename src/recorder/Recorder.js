@@ -164,17 +164,6 @@ export class Recorder {
     this._handlers = {}
   }
 
-  _isInteractive(el) {
-    if (!el || el === document || el === document.body) return false
-    const tag = el.tagName.toLowerCase()
-    return ['input', 'textarea', 'select', 'button', 'a'].includes(tag) ||
-      el.getAttribute('role') === 'button' ||
-      el.getAttribute('role') === 'link' ||
-      el.onclick !== null ||
-      el.tagName.toLowerCase() === 'label' ||
-      el.closest('button, a, [role="button"], [role="link"]') !== null
-  }
-
   _onClick(e) {
     this._record({ type: 'click', target: e.target, clientX: e.clientX, clientY: e.clientY })
   }
@@ -198,6 +187,13 @@ export class Recorder {
   _onInput(e) {
     const el = e.target
     const value = isSensitiveField(el) ? '[REDACTED]' : el.value
+    // 如果上一个事件也是 input 且操作同一个元素，替换它而不是追加
+    const last = this.events[this.events.length - 1]
+    if (last && last.type === 'input' && last.selector === generateSelector(el)) {
+      last.value = value
+      last.timestamp = this._getTimestamp()
+      return
+    }
     this._record({ type: 'input', target: el, value })
   }
 
