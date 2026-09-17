@@ -110,10 +110,11 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { Recorder } from '../recorder/Recorder.js'
 import { ReplayEngine } from '../replay/ReplayEngine.js'
 import { getAllSessions, saveSession as storeSaveSession, getSession, createSessionData, deleteSession as storeDeleteSession } from '../storage/SessionStore.js'
+import { formatTime } from '../analytics/Analytics.js'
 
 const recorder = new Recorder()
 const replayEngine = new ReplayEngine()
@@ -130,6 +131,16 @@ let durationTimer = null
 
 onMounted(async () => {
   sessions.value = await getAllSessions()
+})
+
+onUnmounted(() => {
+  if (durationTimer) {
+    clearInterval(durationTimer)
+    durationTimer = null
+  }
+  if (recorder.isActive()) {
+    recorder.stop()
+  }
 })
 
 function startRecording() {
@@ -183,14 +194,6 @@ function deleteSession(id) {
   storeDeleteSession(id).then(() => {
     getAllSessions().then(s => { sessions.value = s })
   })
-}
-
-function formatTime(ms) {
-  if (typeof ms !== 'number' || isNaN(ms)) return '00:00.000'
-  const totalSeconds = ms / 1000
-  const minutes = Math.floor(totalSeconds / 60)
-  const secs = (totalSeconds % 60).toFixed(3)
-  return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(6, '0')}`
 }
 
 function formatDate(iso) {

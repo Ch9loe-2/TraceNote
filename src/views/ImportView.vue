@@ -135,7 +135,7 @@ async function exportAll() {
 }
 
 function goToSession(id) {
-  router.push(`/session/${id}`)
+  router.push(`/timeline/${id}`)
 }
 </script>
 

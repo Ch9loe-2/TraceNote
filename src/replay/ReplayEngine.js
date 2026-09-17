@@ -15,7 +15,6 @@ export class ReplayEngine {
     this._onPause = null
     this._paused = false
     this._currentIndex = 0
-    this._timers = []
     this._events = []
   }
 
@@ -28,58 +27,63 @@ export class ReplayEngine {
 
   abort() {
     this._aborted = true
-    this._clearTimers()
     this._running = false
   }
 
   async replay(events) {
     if (this._running) return
+    if (!events || events.length === 0) {
+      if (this._onComplete) this._onComplete()
+      return
+    }
 
     this._aborted = false
     this._paused = false
     this._running = true
     this._currentIndex = 0
     this._events = events
-    this._timers = []
 
-    const baseTime = events.length > 0 ? events[0].timestamp : 0
-    let lastTime = 0
+    let lastTime = events[0]?.timestamp ?? 0
 
     for (let i = 0; i < events.length; i++) {
       if (this._aborted) break
 
-      while (this._paused) {
-        await this._sleep(100)
-        if (this._aborted) break
+      const event = events[i]
+      if (!event || !event.type) {
+        this._warn(`Invalid event at index ${i}`)
+        continue
+      }
+
+      // 暂停检查（轮询式，天然可中断）
+      while (this._paused && !this._aborted) {
+        await this._sleepCheck(100)
       }
       if (this._aborted) break
 
-      const event = events[i]
-      const delay = event.timestamp - lastTime
-      lastTime = event.timestamp
+      // 保持原始间隔（轮询方式，abort 时立即退出）
+      const delay = Math.max(0, (event.timestamp ?? 0) - lastTime)
+      lastTime = event.timestamp ?? 0
 
       if (delay > 0) {
-        await this._sleep(delay)
+        await this._sleepCheck(delay)
       }
+      if (this._aborted) break
 
-      if (this._aborted || this._paused) {
-        i--
-        continue
+      // 暂停后再检查
+      while (this._paused && !this._aborted) {
+        await this._sleepCheck(100)
       }
+      if (this._aborted) break
 
       this._currentIndex = i
       try {
         await this._executeEvent(event)
       } catch (err) {
-        this._warn(`Failed to replay ${event.type} on "${event.selector || event.url}": ${err.message}`)
+        this._warn(`Failed to replay ${event.type}: ${err.message}`)
       }
 
       if (this._onProgress) {
-        this._onProgress({
-          index: i,
-          total: events.length,
-          event,
-        })
+        this._onProgress({ index: i, total: events.length, event })
       }
     }
 
@@ -89,18 +93,23 @@ export class ReplayEngine {
     }
   }
 
-  _sleep(ms) {
+  /**
+   * 轮询式 sleep：每隔一小段检查是否被 abort。
+   * 解决 setTimeout + clearTimeout 在 abort 时可能永久挂起的问题。
+   */
+  _sleepCheck(ms) {
     return new Promise(resolve => {
-      const id = setTimeout(resolve, ms)
-      this._timers.push(id)
+      if (this._aborted) { resolve(); return }
+      const deadline = Date.now() + ms
+      const poll = () => {
+        if (this._aborted || Date.now() >= deadline) {
+          resolve()
+        } else {
+          setTimeout(poll, Math.min(16, deadline - Date.now()))
+        }
+      }
+      setTimeout(poll, Math.min(16, ms))
     })
-  }
-
-  _clearTimers() {
-    for (const id of this._timers) {
-      clearTimeout(id)
-    }
-    this._timers = []
   }
 
   _warn(msg) {
@@ -109,58 +118,33 @@ export class ReplayEngine {
 
   async _executeEvent(event) {
     switch (event.type) {
-      case 'click':
-        this._replayClick(event)
-        break
-      case 'dblclick':
-        this._replayDblClick(event)
-        break
-      case 'input':
-        this._replayInput(event)
-        break
-      case 'scroll':
-        this._replayScroll(event)
-        break
-      case 'navigation':
-        this._replayNavigation(event)
-        break
-      case 'load':
-        // load 事件不执行任何动作
-        break
-      case 'keydown':
-        this._replayKeyDown(event)
-        break
-      case 'mouseover':
-        this._replayMouseOver(event)
-        break
-      default:
-        this._warn(`Unknown event type: ${event.type}`)
+      case 'click':       this._replayClick(event); break
+      case 'dblclick':    this._replayDblClick(event); break
+      case 'input':       this._replayInput(event); break
+      case 'scroll':      this._replayScroll(event); break
+      case 'navigation':  this._replayNavigation(event); break
+      case 'keydown':     this._replayKeyDown(event); break
+      case 'mouseover':   this._replayMouseOver(event); break
+      case 'load':        break
+      default:            this._warn(`Unknown event type: ${event.type}`)
     }
   }
 
   _findElement(selector) {
     if (!selector) return null
-    try {
-      return document.querySelector(selector)
-    } catch {
-      return null
-    }
+    try { return document.querySelector(selector) }
+    catch { return null }
   }
 
   _replayClick(event) {
     const el = this._findElement(event.selector)
     if (!el) {
       this._warn(`Click: element not found "${event.selector}"`)
-
-      // fallback: 尝试通过坐标
-      if (event.x !== undefined && event.y !== undefined) {
+      if (event.x != null && event.y != null) {
         const target = document.elementFromPoint(event.x, event.y)
         if (target) {
           target.dispatchEvent(new MouseEvent('click', {
-            bubbles: true,
-            cancelable: true,
-            clientX: event.x,
-            clientY: event.y,
+            bubbles: true, cancelable: true, clientX: event.x, clientY: event.y,
           }))
           return
         }
@@ -173,37 +157,28 @@ export class ReplayEngine {
 
   _replayDblClick(event) {
     const el = this._findElement(event.selector)
-    if (!el) {
-      this._warn(`DblClick: element not found "${event.selector}"`)
-      return
-    }
+    if (!el) { this._warn(`DblClick: element not found "${event.selector}"`); return }
     el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }))
   }
 
   _replayMouseOver(event) {
     const el = this._findElement(event.selector)
-    if (!el) {
-      return // mouseover 失败不报 warning，不关键
-    }
+    if (!el) return
     el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true }))
   }
 
   _replayInput(event) {
     const el = this._findElement(event.selector)
-    if (!el) {
-      this._warn(`Input: element not found "${event.selector}"`)
-      return
-    }
+    if (!el) { this._warn(`Input: element not found "${event.selector}"`); return }
     const val = event.value
     if (val == null || val === '[REDACTED]') return
-    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-        window.HTMLInputElement.prototype, 'value'
-      )?.set
-      if (nativeInputValueSetter) {
-        nativeInputValueSetter.call(el, event.value)
-      } else {
-        el.value = event.value
-      }
+
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+    if (setter) {
+      setter.call(el, val)
+    } else {
+      el.value = val
+    }
     el.dispatchEvent(new Event('input', { bubbles: true }))
     el.dispatchEvent(new Event('change', { bubbles: true }))
   }
@@ -212,21 +187,18 @@ export class ReplayEngine {
     const el = this._findElement(event.selector)
     if (!el) return
     el.dispatchEvent(new KeyboardEvent('keydown', {
-      key: event.key,
-      bubbles: true,
-      cancelable: true,
+      key: event.key, bubbles: true, cancelable: true,
     }))
   }
 
   _replayScroll(event) {
-    if (event.y !== undefined) {
+    if (event.y != null) {
       window.scrollTo({ top: event.y, behavior: 'instant' })
     }
   }
 
   _replayNavigation(event) {
     if (event.url) {
-      // 尝试作为路由导航（如果是 hash 路由或 pushState）
       const currentPath = window.location.pathname + window.location.search + window.location.hash
       if (event.url !== currentPath) {
         if (event.url.startsWith('/')) {

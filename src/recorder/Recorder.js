@@ -82,7 +82,10 @@ export class Recorder {
     let selector = ''
     let x, y
 
-    if (target && target !== document && target !== document.body) {
+    // 支持外部传入预生成的 selector（避免重复调用 generateSelector）
+    if (data._selector) {
+      selector = data._selector
+    } else if (target && target !== document && target !== document.body) {
       selector = generateSelector(target)
     }
 
@@ -189,12 +192,13 @@ export class Recorder {
     const value = isSensitiveField(el) ? '[REDACTED]' : el.value
     // 如果上一个事件也是 input 且操作同一个元素，替换它而不是追加
     const last = this.events[this.events.length - 1]
-    if (last && last.type === 'input' && last.selector === generateSelector(el)) {
+    const sel = generateSelector(el)
+    if (last && last.type === 'input' && last.selector === sel) {
       last.value = value
       last.timestamp = this._getTimestamp()
       return
     }
-    this._record({ type: 'input', target: el, value })
+    this._record({ type: 'input', target: el, value, _selector: sel })
   }
 
   _onScroll(e) {

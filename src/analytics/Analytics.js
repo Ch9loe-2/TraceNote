@@ -91,7 +91,7 @@ export function generateTimelineData(events, width = 600) {
  * 格式化时间
  */
 export function formatTime(ms) {
-  if (typeof ms !== 'number') return '00:00.000'
+  if (typeof ms !== 'number' || isNaN(ms)) return '00:00.000'
   const totalSeconds = ms / 1000
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = (totalSeconds % 60).toFixed(3)
