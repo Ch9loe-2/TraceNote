@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "puppeteer-core": "^25.11.0",
     "vue": "^3.4.0",
     "vue-router": "^4.3.0"
   },
