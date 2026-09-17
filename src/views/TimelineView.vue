@@ -289,8 +289,18 @@ function formatDate(iso) {
   padding: 12px 0;
   border-top: 1px solid var(--border-color);
   margin-top: 12px;
+  flex-shrink: 0;
 }
 
 .redacted { color: var(--danger) !important; }
 .timeline-svg-container svg { display: block; }
+
+/* 事件列表独立滚动 */
+.timeline-container {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 4px 0;
+}
 </style>
