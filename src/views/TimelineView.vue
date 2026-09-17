@@ -3,7 +3,7 @@
     <div class="toolbar">
       <span class="toolbar-title">Timeline</span>
       <div class="toolbar-spacer"></div>
-      <select class="toolbar-select" v-model="selectedSessionId" @change="onSessionChange">
+      <select class="toolbar-select" v-model="selectedSessionId">
         <option value="">— Select a Session —</option>
         <option v-for="s in sessions" :key="s.id" :value="s.id">
           {{ s.name || 'Unnamed' }} ({{ s.eventCount }} events)
@@ -74,7 +74,7 @@
           </div>
           <div class="detail-row">
             <span class="detail-label">Timestamp</span>
-            <span class="detail-value">{{ formatTime(selectedEvent.timestamp) }}s</span>
+            <span class="detail-value">{{ (selectedEvent.timestamp / 1000).toFixed(3) }}s</span>
           </div>
           <div class="detail-row">
             <span class="detail-label">Page</span>
@@ -187,10 +187,6 @@ watch(selectedSessionId, async (id) => {
     svgWidth.value = svgContainer.value.clientWidth - 32
   }
 })
-
-function onSessionChange() {
-  // handled by watch
-}
 
 function labelOf(type) {
   const map = { click: 'Click', dblclick: 'DblClick', input: 'Input',

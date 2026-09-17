@@ -16,6 +16,8 @@ export class Recorder {
     this.active = false
     this._handlers = {}
     this._currentPage = window.location.pathname
+    this._lastMouseOverTarget = null
+    this._mouseOverThrottleMs = 300
   }
 
   /**
@@ -174,14 +176,7 @@ export class Recorder {
   }
 
   _onClick(e) {
-    const target = e.target
-
-    // 如果是 label 且关联 input，聚焦 input（不记录 label 自身点击，避免重复）
-    if (target.tagName === 'LABEL' && target.getAttribute('for')) {
-      // Still record the click on label
-    }
-
-    this._record({ type: 'click', target, clientX: e.clientX, clientY: e.clientY })
+    this._record({ type: 'click', target: e.target, clientX: e.clientX, clientY: e.clientY })
   }
 
   _onDblClick(e) {
@@ -189,7 +184,11 @@ export class Recorder {
   }
 
   _onMouseOver(e) {
+    // Throttle: only record when hovering a new target, at most once per 300ms
+    if (e.target === this._lastMouseOverTarget) return
+    this._lastMouseOverTarget = e.target
     this._record({ type: 'mouseover', target: e.target })
+    setTimeout(() => { this._lastMouseOverTarget = null }, this._mouseOverThrottleMs)
   }
 
   _onKeyDown(e) {

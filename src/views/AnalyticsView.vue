@@ -3,7 +3,7 @@
     <div class="toolbar">
       <span class="toolbar-title">Analytics</span>
       <div class="toolbar-spacer"></div>
-      <select class="toolbar-select" v-model="selectedSessionId" @change="onSessionChange">
+      <select class="toolbar-select" v-model="selectedSessionId">
         <option value="">— Select a Session —</option>
         <option v-for="s in sessions" :key="s.id" :value="s.id">
           {{ s.name || 'Unnamed' }} ({{ s.eventCount }} events)
@@ -150,8 +150,6 @@ watch(selectedSessionId, async (id) => {
   if (!id) { session.value = null; return }
   session.value = await getSession(id)
 })
-
-function onSessionChange() {}
 </script>
 
 <style scoped>

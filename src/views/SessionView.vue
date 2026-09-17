@@ -58,7 +58,7 @@
         </div>
         <div class="detail-row">
           <span class="detail-label">Timestamp</span>
-          <span class="detail-value">{{ formatTime(selectedEvent.timestamp) }}s</span>
+          <span class="detail-value">{{ (selectedEvent.timestamp / 1000).toFixed(3) }}s</span>
         </div>
         <div class="detail-row">
           <span class="detail-label">Page</span>

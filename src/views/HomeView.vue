@@ -25,9 +25,9 @@
       <div class="demo-body">
         <div class="demo-controls">
           <button class="demo-btn" @click="demoClick">Primary</button>
-          <button class="demo-btn demo-btn-success" @click="demoClick">Success</button>
+          <button class="demo-btn" @click="demoClick">Success</button>
           <button class="demo-btn demo-btn-danger" @click="demoClick">Danger</button>
-          <button class="demo-btn" @click="demoClick">Double Click Me</button>
+          <button class="demo-btn" @dblclick="demoDblClick">Double Click Me</button>
           <input class="demo-input" type="text" placeholder="Normal text input" />
           <input class="demo-input" type="password" placeholder="Password (redacted)" />
           <input class="demo-input" type="text" placeholder="Search..." />
@@ -200,6 +200,7 @@ function formatDate(iso) {
 }
 
 function demoClick() {}
+function demoDblClick() {}
 </script>
 
 <style scoped>

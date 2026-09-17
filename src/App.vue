@@ -7,7 +7,7 @@
       </div>
       <nav class="sidebar-nav">
         <div class="nav-section">Navigation</div>
-        <router-link to="/" class="nav-item" active-class="active" exact>
+        <router-link to="/" class="nav-item" exact-active-class="active">
           <span class="nav-icon">◉</span>
           Sessions
         </router-link>

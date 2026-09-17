@@ -194,8 +194,9 @@ export class ReplayEngine {
       this._warn(`Input: element not found "${event.selector}"`)
       return
     }
-    if (typeof event.value === 'string' && event.value !== '[REDACTED]') {
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+    const val = event.value
+    if (val == null || val === '[REDACTED]') return
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
         window.HTMLInputElement.prototype, 'value'
       )?.set
       if (nativeInputValueSetter) {
@@ -203,9 +204,8 @@ export class ReplayEngine {
       } else {
         el.value = event.value
       }
-      el.dispatchEvent(new Event('input', { bubbles: true }))
-      el.dispatchEvent(new Event('change', { bubbles: true }))
-    }
+    el.dispatchEvent(new Event('input', { bubbles: true }))
+    el.dispatchEvent(new Event('change', { bubbles: true }))
   }
 
   _replayKeyDown(event) {
